@@ -1,6 +1,6 @@
-import { Plugin } from 'obsidian';
+import { normalizePath, Plugin } from 'obsidian';
+import { emptyData, migrate } from './migrations';
 import type {
-	BrainOffloadData,
 	Intention,
 	IntentionDraft,
 	IntentionSession,
@@ -9,68 +9,18 @@ import type {
 	SessionDraft,
 } from './types';
 
-const emptyData = (): BrainOffloadData => ({
-	schemaVersion: 2,
-	startedAt: new Date().toISOString(),
-	intentions: [],
-	sessions: [],
-	stretches: [],
-});
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null;
-}
-
-function isIntention(value: unknown): value is Intention {
-	if (!isRecord(value)) return false;
-	return (
-		typeof value.id === 'string' &&
-		typeof value.title === 'string' &&
-		(value.kind === 'idea' || value.kind === 'goal' || value.kind === 'project' || value.kind === 'ongoing') &&
-		typeof value.description === 'string' &&
-		typeof value.sharedContext === 'string' &&
-		typeof value.recipe === 'string' &&
-		typeof value.createdAt === 'string' &&
-		typeof value.updatedAt === 'string'
-	);
-}
-
-function isSession(value: unknown): value is IntentionSession {
-	if (!isRecord(value)) return false;
-	return (
-		typeof value.id === 'string' &&
-		typeof value.intentionId === 'string' &&
-		typeof value.date === 'string' &&
-		typeof value.durationMinutes === 'number' &&
-		typeof value.context === 'string' &&
-		(value.contextMode === 'one-shot' || value.contextMode === 'recurring') &&
-		typeof value.createdAt === 'string'
-	);
-}
-
-function isStretch(value: unknown): value is IntentionStretch {
-	if (!isRecord(value)) return false;
-	return (
-		typeof value.id === 'string' &&
-		typeof value.intentionId === 'string' &&
-		typeof value.startDate === 'string' &&
-		(value.endDate === undefined || typeof value.endDate === 'string') &&
-		typeof value.createdAt === 'string' &&
-		typeof value.updatedAt === 'string'
-	);
-}
-
-function earliestRecordDate(records: Array<{ createdAt: string }>): string | undefined {
-	const timestamps = records
-		.map((record) => Date.parse(record.createdAt))
-		.filter((timestamp) => Number.isFinite(timestamp));
-	return timestamps.length > 0 ? new Date(Math.min(...timestamps)).toISOString() : undefined;
-}
+const MAX_BACKUPS = 10;
 
 export class BrainOffloadStore {
-	private data = emptyData();
+	private data = emptyData(new Date().toISOString());
+	/** Set when saved data could not be read or backed up; saving would risk overwriting it. */
+	private writeBlockedReason?: string;
 
 	constructor(private readonly plugin: Plugin) {}
+
+	get loadProblem(): string | undefined {
+		return this.writeBlockedReason;
+	}
 
 	get intentions(): Intention[] {
 		return [...this.data.intentions];
@@ -89,35 +39,32 @@ export class BrainOffloadStore {
 	}
 
 	async load(): Promise<void> {
-		const saved: unknown = await this.plugin.loadData();
-		if (!isRecord(saved)) {
-			this.data = emptyData();
+		let saved: unknown;
+		try {
+			saved = await this.plugin.loadData();
+		} catch {
+			this.writeBlockedReason = 'Brain Offload could not read its saved data, so changes will not be saved.';
+			return;
+		}
+		const result = migrate(saved, new Date().toISOString());
+		if (result.kind === 'unreadable') {
+			this.writeBlockedReason = `${result.reason} Changes will not be saved, to protect your data.`;
+			return;
+		}
+		this.data = result.data;
+		if (result.kind === 'empty') {
 			await this.persist();
 			return;
 		}
-		const intentions = Array.isArray(saved.intentions)
-			? saved.intentions.filter(isIntention)
-			: [];
-		const intentionIds = new Set(intentions.map((intention) => intention.id));
-		const sessions = Array.isArray(saved.sessions)
-			? saved.sessions.filter(
-					(session): session is IntentionSession =>
-						isSession(session) && intentionIds.has(session.intentionId),
-				)
-			: [];
-			const stretches = Array.isArray(saved.stretches)
-				? saved.stretches.filter(
-						(stretch): stretch is IntentionStretch =>
-							isStretch(stretch) && intentionIds.has(stretch.intentionId),
-					)
-				: [];
-			const startedAt = typeof saved.startedAt === 'string' && Number.isFinite(Date.parse(saved.startedAt))
-				? saved.startedAt
-				: earliestRecordDate([...intentions, ...sessions]) ?? new Date().toISOString();
-			this.data = { schemaVersion: 2, startedAt, intentions, sessions, stretches };
-			if (saved.schemaVersion !== 2 || saved.startedAt !== startedAt || !Array.isArray(saved.stretches)) {
-				await this.persist();
-			}
+		if (!result.changed) return;
+		try {
+			await this.backup(saved);
+		} catch {
+			this.writeBlockedReason =
+				'Brain Offload could not back up its saved data before upgrading it, so changes will not be saved.';
+			return;
+		}
+		await this.persist();
 	}
 
 	async saveIntention(draft: IntentionDraft, id?: string): Promise<Intention> {
@@ -184,6 +131,23 @@ export class BrainOffloadStore {
 	}
 
 	private async persist(): Promise<void> {
+		if (this.writeBlockedReason) throw new Error(this.writeBlockedReason);
 		await this.plugin.saveData(this.data);
+	}
+
+	/** Copies the saved data, as read, to a timestamped file before it is overwritten. */
+	private async backup(saved: unknown): Promise<void> {
+		const { adapter, configDir } = this.plugin.app.vault;
+		const pluginDir = this.plugin.manifest.dir ?? `${configDir}/plugins/${this.plugin.manifest.id}`;
+		const folder = normalizePath(`${pluginDir}/backups`);
+		if (!(await adapter.exists(folder))) await adapter.mkdir(folder);
+		const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+		await adapter.write(normalizePath(`${folder}/data-${stamp}.json`), JSON.stringify(saved, null, '\t'));
+		const backups = (await adapter.list(folder)).files
+			.filter((path) => /\/data-[^/]+\.json$/.test(path))
+			.sort();
+		for (const path of backups.slice(0, Math.max(0, backups.length - MAX_BACKUPS))) {
+			await adapter.remove(path);
+		}
 	}
 }

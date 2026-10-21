@@ -52,6 +52,8 @@ The horizon shows one row per intention and never displays individual sessions.
 
 The saved records are in `<Vault>/.obsidian/plugins/brain-offload/data.json`.
 
+Before the plugin upgrades or repairs that file, it copies the original to `backups/` in the same folder and keeps the 10 most recent copies. Records that fail validation are kept in the file's `quarantine` list rather than deleted. If the data cannot be read or backed up, the plugin shows a notice and does not save changes.
+
 ## Development checks
 
 ```bash

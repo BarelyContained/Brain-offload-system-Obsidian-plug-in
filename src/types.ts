@@ -40,10 +40,19 @@ export interface IntentionStretch extends IntentionStretchDraft {
 	updatedAt: string;
 }
 
+/** A saved record that failed validation on load, kept instead of being discarded. */
+export interface QuarantinedRecord {
+	collection: string;
+	record: unknown;
+	reason: string;
+	quarantinedAt: string;
+}
+
 export interface BrainOffloadData {
-	schemaVersion: 2;
+	schemaVersion: 3;
 	startedAt: string;
 	intentions: Intention[];
 	sessions: IntentionSession[];
 	stretches: IntentionStretch[];
+	quarantine: QuarantinedRecord[];
 }

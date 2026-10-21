@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { Notice, Plugin } from 'obsidian';
 import { BrainOffloadStore } from './store';
 import { BrainOffloadView, VIEW_TYPE_BRAIN_OFFLOAD } from './view';
 
@@ -8,6 +8,7 @@ export default class BrainOffloadPlugin extends Plugin {
 	async onload() {
 		this.store = new BrainOffloadStore(this);
 		await this.store.load();
+		if (this.store.loadProblem) new Notice(this.store.loadProblem, 0);
 
 		this.registerView(
 			VIEW_TYPE_BRAIN_OFFLOAD,
