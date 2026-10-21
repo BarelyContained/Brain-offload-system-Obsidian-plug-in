@@ -1,0 +1,8 @@
+{
+	"id": "brain-offload",
+	"name": "Brain Offload",
+	"version": "0.1.0",
+	"minAppVersion": "1.7.2",
+	"description": "Keep intentions, shared context, recipes, and session records together.",
+	"isDesktopOnly": true
+}
