@@ -24,14 +24,16 @@ export default class BrainOffloadPlugin extends Plugin {
 		});
 	}
 
+	/** Reveals an open panel wherever the user placed it, or opens a new one as a main-area tab. */
 	private async activateView() {
-		const existing = this.app.workspace.getLeavesOfType(
-			VIEW_TYPE_BRAIN_OFFLOAD,
-		)[0];
-		const leaf = existing ?? this.app.workspace.getRightLeaf(false);
-		if (!leaf) return;
-
+		const { workspace } = this.app;
+		const existing = workspace.getLeavesOfType(VIEW_TYPE_BRAIN_OFFLOAD)[0];
+		if (existing) {
+			await workspace.revealLeaf(existing);
+			return;
+		}
+		const leaf = workspace.getLeaf('tab');
 		await leaf.setViewState({ type: VIEW_TYPE_BRAIN_OFFLOAD, active: true });
-		await this.app.workspace.revealLeaf(leaf);
+		await workspace.revealLeaf(leaf);
 	}
 }
