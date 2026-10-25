@@ -59,4 +59,5 @@ Before the plugin upgrades or repairs that file, it copies the original to `back
 ```bash
 npm run build
 npm run lint
+npm test
 ```
