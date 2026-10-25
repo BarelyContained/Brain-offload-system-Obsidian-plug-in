@@ -21,6 +21,10 @@ data.json
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
 
+# Local install scripts (contain a personal vault path)
+install.sh
+install.ps1
+
 # Claude Code settings
 .claude/settings.json
 .claude/settings.local.json

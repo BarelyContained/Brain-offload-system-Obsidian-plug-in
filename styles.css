@@ -412,7 +412,7 @@
 	background: var(--background-secondary);
 }
 
-.brain-offload__horizon-scroll {
+.brain-offload__horizon-board {
 	max-width: 100%;
 	overflow-x: auto;
 	border: 1px solid var(--background-modifier-border);
@@ -420,20 +420,31 @@
 	background: var(--background-primary);
 }
 
-.brain-offload__horizon-grid {
-	display: grid;
-	grid-auto-flow: row;
+.brain-offload__horizon-table {
 	width: max-content;
 	min-width: 100%;
+}
+
+.brain-offload__horizon-row {
+	display: grid;
+	grid-template-columns: 200px 1fr;
+}
+
+/* The label column stays put while the months scroll beneath the stretch bars. */
+.brain-offload__horizon-row > :first-child {
+	position: sticky;
+	left: 0;
+	z-index: 3;
+	border-right: 1px solid var(--background-modifier-border);
+}
+
+.brain-offload__horizon-grid {
+	display: grid;
 	grid-auto-rows: minmax(62px, auto);
 	align-items: stretch;
 }
 
-.brain-offload__intention-grid {
-	grid-auto-rows: minmax(68px, auto);
-}
-
-.brain-offload__horizon-corner,
+.brain-offload__horizon-fixed-heading,
 .brain-offload__month-heading,
 .brain-offload__concurrency-label,
 .brain-offload__concurrency-cell,
@@ -443,13 +454,13 @@
 	border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.brain-offload__horizon-corner,
+.brain-offload__horizon-fixed-heading,
 .brain-offload__concurrency-label,
 .brain-offload__horizon-row-label {
 	background: var(--background-primary);
 }
 
-.brain-offload__horizon-corner {
+.brain-offload__horizon-fixed-heading {
 	display: flex;
 	align-items: flex-end;
 	padding: 12px;
@@ -536,8 +547,10 @@
 }
 
 .brain-offload__add-stretch {
+	height: auto;
 	padding: 0;
 	border: 0;
+	box-shadow: none;
 	background: transparent;
 	color: var(--interactive-accent);
 	font-size: var(--font-smaller);

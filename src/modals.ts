@@ -1,4 +1,5 @@
 import { App, Modal, Notice, Setting } from 'obsidian';
+import { localDate } from './dates';
 import type {
 	Intention,
 	IntentionDraft,
@@ -8,13 +9,6 @@ import type {
 	SessionContextMode,
 	SessionDraft,
 } from './types';
-
-function localDate(): string {
-	const now = new Date();
-	return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
-		.toISOString()
-		.slice(0, 10);
-}
 
 export class IntentionModal extends Modal {
 	constructor(
